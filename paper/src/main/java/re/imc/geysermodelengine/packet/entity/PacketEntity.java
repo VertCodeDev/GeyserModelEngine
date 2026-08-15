@@ -28,7 +28,9 @@ public class PacketEntity {
     private UUID uuid;
     private EntityType type;
     private Set<Player> viewers;
-    private Location location;
+    // Written by the async model tick, read by packet sends on other threads - volatile so a
+    // teleport is seen whole.
+    private volatile Location location;
     private float headYaw;
     private float headPitch;
 

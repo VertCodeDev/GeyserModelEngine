@@ -1,13 +1,12 @@
 package re.imc.geysermodelengine.listener;
 
 import org.bukkit.Bukkit;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.world.WorldInitEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import re.imc.geysermodelengine.GeyserModelEngine;
 import re.imc.geysermodelengine.events.GeyserModelEngineEntitySpawnEvent;
 import re.imc.geysermodelengine.util.BedrockUtils;
@@ -21,13 +20,14 @@ public class ModelListener implements Listener {
     }
 
     /*
-     / xSquishyLiam:
-     / May change this into a better system?
+     / Folia: iterating a whole world's entities (the old WorldInitEvent sweep) requires owning
+     / every region and throws under region threading. EntitiesLoadEvent fires per chunk ON the
+     / owning region, and also covers persisted model entities loading in later - strictly more
+     / correct on Paper too.
     */
     @EventHandler
-    public void onWorldInit(WorldInitEvent event) {
-        World world = event.getWorld();
-        world.getEntities().forEach(entity -> plugin.getModelManager().getModelHandler().processEntities(entity));
+    public void onEntitiesLoad(EntitiesLoadEvent event) {
+        event.getEntities().forEach(entity -> plugin.getModelManager().getModelHandler().processEntities(entity));
     }
 
     /*

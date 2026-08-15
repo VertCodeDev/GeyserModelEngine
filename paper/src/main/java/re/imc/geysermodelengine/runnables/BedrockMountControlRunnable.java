@@ -24,34 +24,44 @@ public class BedrockMountControlRunnable implements Runnable {
     public void run() {
         for (UUID playerUUID : plugin.getModelManager().getPlayerJoinedCache()) {
             Player player = Bukkit.getPlayer(playerUUID);
+            // An offline player used to NPE here - and one throw kills a scheduleAtFixedRate
+            // task permanently, taking Bedrock mount control with it until a restart.
+            if (player == null) continue;
 
-            float pitch = player.getLocation().getPitch();
             Pair<ActiveModel, Mount> seat = plugin.getModelManager().getDriversCache().get(player.getUniqueId());
             if (seat == null) continue;
 
-            if (pitch < -30) {
-                MountController controller = ModelEngineAPI.getMountPairManager().getController(player.getUniqueId());
-                if (controller != null) {
-                    MountController.MountInput input = controller.getInput();
-                    if (input != null) {
-                        input.setJump(true);
-                        controller.setInput(input);
-                    }
+            // Onto the driver's own region: pitch and the mount's on-ground state are entity
+            // state this async pool may not touch under Folia.
+            player.getScheduler().run(plugin, task -> control(player, seat), null);
+        }
+    }
+
+    private void control(Player player, Pair<ActiveModel, Mount> seat) {
+        float pitch = player.getLocation().getPitch();
+
+        if (pitch < -30) {
+            MountController controller = ModelEngineAPI.getMountPairManager().getController(player.getUniqueId());
+            if (controller != null) {
+                MountController.MountInput input = controller.getInput();
+                if (input != null) {
+                    input.setJump(true);
+                    controller.setInput(input);
                 }
             }
+        }
 
-            if (pitch > 80) {
-                if (seat.getKey().getModeledEntity().getBase() instanceof BukkitEntity bukkitEntity) {
-                    if (bukkitEntity.getOriginal().isOnGround()) continue;
-                }
+        if (pitch > 80) {
+            if (seat.getKey().getModeledEntity().getBase() instanceof BukkitEntity bukkitEntity) {
+                if (bukkitEntity.getOriginal().isOnGround()) return;
+            }
 
-                MountController controller = ModelEngineAPI.getMountPairManager().getController(player.getUniqueId());
-                if (controller != null) {
-                    MountController.MountInput input = controller.getInput();
-                    if (input != null) {
-                        input.setSneak(true);
-                        controller.setInput(input);
-                    }
+            MountController controller = ModelEngineAPI.getMountPairManager().getController(player.getUniqueId());
+            if (controller != null) {
+                MountController.MountInput input = controller.getInput();
+                if (input != null) {
+                    input.setSneak(true);
+                    controller.setInput(input);
                 }
             }
         }

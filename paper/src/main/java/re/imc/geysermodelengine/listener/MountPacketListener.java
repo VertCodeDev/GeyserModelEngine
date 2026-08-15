@@ -27,7 +27,7 @@ public class MountPacketListener implements PacketListener {
         if (event.getPacketType() != PacketType.Play.Client.ENTITY_ACTION) return;
 
         Player player = Bukkit.getPlayer(event.getUser().getUUID());
-        if (!BedrockUtils.isBedrockPlayer(player)) return;
+        if (player == null || !BedrockUtils.isBedrockPlayer(player)) return;
 
         WrapperPlayClientEntityAction action = new WrapperPlayClientEntityAction(event);
         Pair<ActiveModel, Mount> seat = plugin.getModelManager().getDriversCache().get(player.getUniqueId());
@@ -35,6 +35,7 @@ public class MountPacketListener implements PacketListener {
         if (seat == null) return;
         if (action.getAction() != WrapperPlayClientEntityAction.Action.START_SNEAKING) return;
 
-        ModelEngineAPI.getMountPairManager().tryDismount(player);
+        // Off netty, onto the rider's region: dismounting mutates real entity state.
+        player.getScheduler().run(plugin, task -> ModelEngineAPI.getMountPairManager().tryDismount(player), null);
     }
 }

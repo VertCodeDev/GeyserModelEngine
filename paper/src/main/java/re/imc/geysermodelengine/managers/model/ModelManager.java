@@ -20,7 +20,10 @@ public class ModelManager {
 
     private ModelHandler modelHandler;
 
-    private final HashSet<UUID> playerJoinedCache = new HashSet<>();
+    // Touched from the global scheduler (join), per-player region threads (quit), the async
+    // scheduler pool (viewer checks, mount control) and netty (packet listeners) - a plain
+    // HashSet here corrupts silently under Folia's threading.
+    private final Set<UUID> playerJoinedCache = ConcurrentHashMap.newKeySet();
 
     private final ConcurrentHashMap<Integer, Model> modelEntitiesCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, Map<Model, EntityData>> entitiesCache = new ConcurrentHashMap<>();
@@ -56,7 +59,7 @@ public class ModelManager {
         return modelHandler;
     }
 
-    public HashSet<UUID> getPlayerJoinedCache() {
+    public Set<UUID> getPlayerJoinedCache() {
         return playerJoinedCache;
     }
 
