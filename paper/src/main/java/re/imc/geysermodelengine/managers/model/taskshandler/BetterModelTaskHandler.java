@@ -2,19 +2,19 @@ package re.imc.geysermodelengine.managers.model.taskshandler;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import kr.toxicity.model.api.entity.BaseEntity;
-import kr.toxicity.model.api.tracker.EntityTracker;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import re.imc.geysermodelengine.GeyserModelEngine;
 import re.imc.geysermodelengine.events.GeyserModelEngineEntityDeathEvent;
 import re.imc.geysermodelengine.managers.model.entity.BetterModelEntityData;
 import re.imc.geysermodelengine.managers.model.entity.EntityData;
+import re.imc.geysermodelengine.managers.model.model.Model;
 import re.imc.geysermodelengine.packet.entity.PacketEntity;
 import re.imc.geysermodelengine.util.CustomEntitySpawnSynchronizer;
 
 import java.awt.*;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -32,7 +32,7 @@ public class BetterModelTaskHandler implements TaskHandler {
     private float lastScale = -1.0f;
     private Color lastColor = null;
 
-    private boolean removed = false;
+    private volatile boolean removed = false;
 
     private final ConcurrentHashMap<String, Integer> lastIntSet = new ConcurrentHashMap<>();
     private final Cache<String, Boolean> lastPlayedAnim = CacheBuilder.newBuilder().expireAfterWrite(30, TimeUnit.MILLISECONDS).build();
@@ -55,29 +55,21 @@ public class BetterModelTaskHandler implements TaskHandler {
 
     @Override
     public void runAsync() {
-        plugin.getEntityTaskManager().checkViewers(entityData, entityData.getViewers());
+        if (removed) return;
 
         PacketEntity entity = entityData.getEntity();
         if (entity.isDead()) return;
 
-        Set<Player> viewers = entityData.getViewers();
-        BaseEntity entitySource = entityData.getEntitySource();
-        EntityTracker entityTracker = entityData.getEntityTracker();
-
-        entityData.teleportToModel();
-
-        if (entitySource.dead() || entityTracker.forRemoval()) {
-            removed = true;
-            entity.remove();
-
-            plugin.getModelManager().getEntitiesCache().remove(entitySource.id());
-            plugin.getModelManager().getModelEntitiesCache().remove(entitySource.id());
-
-            cancel();
-
-            Bukkit.getPluginManager().callEvent(new GeyserModelEngineEntityDeathEvent(entityData));
+        if (entityData.isRemoved()) {
+            remove();
             return;
         }
+
+        plugin.getEntityTaskManager().checkViewers(entityData, entityData.getViewers());
+
+        Set<Player> viewers = entityData.getViewers();
+
+        entityData.teleportToModel();
 
         if (tick % 40 == 0) {
             viewers.removeIf(viewer -> !plugin.getEntityTaskManager().canSee(viewer, entityData.getEntity(), entityData.getModelInstance()));
@@ -95,13 +87,36 @@ public class BetterModelTaskHandler implements TaskHandler {
         plugin.getEntityTaskManager().getPropertyHandler().sendColor(entityData, viewers, lastColor, false);
     }
 
+    /**
+     * Take the model down for its viewers and forget it. Only this model leaves the entity's map:
+     * an entity can carry more than one.
+     */
+    private void remove() {
+        removed = true;
+        entityData.getEntity().remove();
+
+        int key = entityData.getKey();
+        Map<Model, EntityData> models = plugin.getModelManager().getEntitiesCache().get(key);
+        if (models != null) {
+            models.values().remove(entityData);
+            if (models.isEmpty()) plugin.getModelManager().getEntitiesCache().remove(key, models);
+        }
+        plugin.getModelManager().getModelEntitiesCache().computeIfPresent(key, (k, model) -> model.getEntityData() == entityData ? null : model);
+
+        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.death")) plugin.getLogger().info(entityData.getTracker().name() + " is gone, removing it");
+
+        cancel();
+
+        Bukkit.getPluginManager().callEvent(new GeyserModelEngineEntityDeathEvent(entityData));
+    }
+
     @Override
     public void sendEntityData(EntityData entityData, Player player, int delay) {
         BetterModelEntityData betterModelEntityData = (BetterModelEntityData) entityData;
         long propertiesSendDelay = plugin.getConfigManager().getConfig().getInt("models.properties-send-delay", 1);
-        String customIdentifier = plugin.getConfigManager().getConfig().getString("models.namespace") + ":" + betterModelEntityData.getEntityTracker().name().toLowerCase();
+        String customIdentifier = plugin.getConfigManager().getConfig().getString("models.namespace") + ":" + betterModelEntityData.getTracker().name().toLowerCase();
 
-        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.send-data")) plugin.getLogger().info("Setting custom entity data for " + betterModelEntityData.getEntityTracker().name());
+        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.send-data")) plugin.getLogger().info("Setting custom entity data for " + betterModelEntityData.getTracker().name());
 
         CustomEntitySpawnSynchronizer.sendAndSpawn(plugin, player, entityData.getEntity().getEntityId(), customIdentifier, delay, () -> {
             entityData.getEntity().sendSpawnPacket(Collections.singletonList(player));

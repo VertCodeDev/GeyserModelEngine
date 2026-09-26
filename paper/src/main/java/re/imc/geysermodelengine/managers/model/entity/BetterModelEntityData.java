@@ -2,23 +2,25 @@ package re.imc.geysermodelengine.managers.model.entity;
 
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.google.common.collect.Sets;
-import com.ticxo.modelengine.api.utils.scheduling.BukkitPlatformTask;
-import kr.toxicity.model.api.bukkit.BetterModelBukkit;
-import kr.toxicity.model.api.bukkit.platform.BukkitAdapter;
 import kr.toxicity.model.api.bukkit.platform.BukkitLocation;
 import kr.toxicity.model.api.entity.BaseEntity;
-import kr.toxicity.model.api.platform.PlatformAdapter;
 import kr.toxicity.model.api.tracker.EntityTracker;
+import kr.toxicity.model.api.tracker.ModelRotation;
 import kr.toxicity.model.api.tracker.Tracker;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 import re.imc.geysermodelengine.GeyserModelEngine;
 import re.imc.geysermodelengine.managers.model.taskshandler.BetterModelTaskHandler;
 import re.imc.geysermodelengine.packet.entity.PacketEntity;
 
 import java.util.Set;
 
+/**
+ * One BetterModel tracker mirrored to Bedrock viewers as a custom entity. Covers both kinds of
+ * tracker: an {@link EntityTracker} follows a real entity, a {@link kr.toxicity.model.api.tracker.DummyTracker}
+ * has no entity at all and is placed and shown per player by whoever spawned it.
+ */
 public class BetterModelEntityData implements EntityData {
 
     private final GeyserModelEngine plugin;
@@ -26,32 +28,55 @@ public class BetterModelEntityData implements EntityData {
     private final PacketEntity entity;
     private final Set<Player> viewers = Sets.newConcurrentHashSet();
 
-    private final BaseEntity entitySource;
-    private final EntityTracker entityTracker;
-    // TODO DummyTracker support
+    private final Tracker tracker;
+    // The entity an EntityTracker follows; null for a DummyTracker.
+    private final @Nullable BaseEntity entitySource;
+    // The caches' key: the entity's id, or a negative id of our own for a DummyTracker.
+    private final int key;
 
     private BetterModelTaskHandler entityTask;
 
-    private boolean hurt;
+    private volatile boolean hurt;
 
-    public BetterModelEntityData(GeyserModelEngine plugin, BaseEntity entitySource, EntityTracker entityTracker) {
+    public BetterModelEntityData(GeyserModelEngine plugin, Tracker tracker, int key) {
         this.plugin = plugin;
 
-        this.entitySource = entitySource;
-        this.entityTracker = entityTracker;
+        this.tracker = tracker;
+        this.entitySource = tracker instanceof EntityTracker entityTracker ? entityTracker.sourceEntity() : null;
+        this.key = key;
 
-        Location location = ((BukkitLocation) entitySource.location()).source();
-        this.entity = new PacketEntity(EntityTypes.PIG, viewers, location);
+        this.entity = new PacketEntity(EntityTypes.PIG, viewers, modelLocation());
 
         runEntityTask();
     }
 
+    /**
+     * Where the model stands, facing the way BetterModel draws it: a tracker's rotation, not the
+     * location's, since a dummy is often turned without being moved.
+     */
+    private Location modelLocation() {
+        Location location = ((BukkitLocation) tracker.location()).source().clone();
+        ModelRotation rotation = tracker.rotation();
+
+        location.setYaw(rotation.y());
+        location.setPitch(rotation.x());
+
+        return location;
+    }
+
     @Override
     public void teleportToModel() {
-        Location location = ((BukkitLocation) entitySource.location()).source();
+        Location location = modelLocation();
         entity.teleport(location);
 
-        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.location")) plugin.getLogger().info(entityTracker.name() + " " + location);
+        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.location")) plugin.getLogger().info(tracker.name() + " " + location);
+    }
+
+    /**
+     * @return whether the tracker is gone: closed (removed, or BetterModel reloaded), or its entity dead
+     */
+    public boolean isRemoved() {
+        return tracker.isClosed() || tracker.forRemoval() || (entitySource != null && entitySource.dead());
     }
 
     public void runEntityTask() {
@@ -75,19 +100,23 @@ public class BetterModelEntityData implements EntityData {
 
     @Override
     public Object getModelInstance() {
-        return entityTracker;
+        return tracker;
     }
 
     public void setHurt(boolean hurt) {
         this.hurt = hurt;
     }
 
-    public BaseEntity getEntitySource() {
+    public @Nullable BaseEntity getEntitySource() {
         return entitySource;
     }
 
-    public EntityTracker getEntityTracker() {
-        return entityTracker;
+    public Tracker getTracker() {
+        return tracker;
+    }
+
+    public int getKey() {
+        return key;
     }
 
     public boolean isHurt() {

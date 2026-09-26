@@ -1,7 +1,6 @@
 package re.imc.geysermodelengine.managers.model.modelhandler;
 
 import kr.toxicity.model.api.bukkit.platform.BukkitAdapter;
-import kr.toxicity.model.api.entity.BaseEntity;
 import kr.toxicity.model.api.tracker.EntityTracker;
 import kr.toxicity.model.api.tracker.Tracker;
 import org.bukkit.Bukkit;
@@ -9,56 +8,57 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import re.imc.geysermodelengine.GeyserModelEngine;
 import re.imc.geysermodelengine.listener.BetterModelListener;
-import re.imc.geysermodelengine.managers.model.propertyhandler.PropertyHandler;
 import re.imc.geysermodelengine.managers.model.entity.BetterModelEntityData;
 import re.imc.geysermodelengine.managers.model.entity.EntityData;
 import re.imc.geysermodelengine.managers.model.model.BetterModelModel;
 import re.imc.geysermodelengine.managers.model.model.Model;
+import re.imc.geysermodelengine.managers.model.propertyhandler.PropertyHandler;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class BetterModelHandler implements ModelHandler {
 
     private final GeyserModelEngine plugin;
 
+    // A DummyTracker has no entity, so it gets a key of its own below zero, clear of entity ids.
+    private final AtomicInteger dummyKeys = new AtomicInteger();
+
     public BetterModelHandler(GeyserModelEngine plugin) {
         this.plugin = plugin;
     }
 
+    /**
+     * Mirror a tracker, entity or dummy. Called from BetterModel's events, so on whichever thread
+     * created the tracker: everything here is safe to run concurrently.
+     */
     @Override
     public void createModel(Object... objects) {
-        EntityTracker entityTracker = (EntityTracker) objects[0];
-        BaseEntity entitySource = entityTracker.sourceEntity();
+        Tracker tracker = (Tracker) objects[0];
+        int key = tracker instanceof EntityTracker entityTracker ? entityTracker.sourceEntity().id() : dummyKeys.decrementAndGet();
 
-        int entityID = entitySource.id();
+        Map<Model, EntityData> entityDataCache = plugin.getModelManager().getEntitiesCache().computeIfAbsent(key, k -> new ConcurrentHashMap<>());
 
-        PropertyHandler propertyHandler = plugin.getEntityTaskManager().getPropertyHandler();
-        EntityData entityData = new BetterModelEntityData(plugin, entitySource, entityTracker);
-
-        Model model = new BetterModelModel(entityTracker, this, entityData, propertyHandler);
-
-        Map<Model, EntityData> entityDataCache = plugin.getModelManager().getEntitiesCache().computeIfAbsent(entityID, k -> new HashMap<>());
-
-        for (Map.Entry<Model, EntityData> entry : entityDataCache.entrySet()) {
-            if (entry.getKey() != model && entry.getKey().getName().equals(entityTracker.name())) {
-                return;
-            }
+        // One copy of a model per entity. Checked before building anything: the entity data
+        // starts its task on construction, and a rejected one would tick forever.
+        for (Model existing : entityDataCache.keySet()) {
+            if (existing.getName().equals(tracker.name())) return;
         }
 
-        plugin.getModelManager().getModelEntitiesCache().put(entityID, model);
+        PropertyHandler propertyHandler = plugin.getEntityTaskManager().getPropertyHandler();
+        EntityData entityData = new BetterModelEntityData(plugin, tracker, key);
+        Model model = new BetterModelModel(tracker, this, entityData, propertyHandler);
+
+        plugin.getModelManager().getModelEntitiesCache().put(key, model);
         entityDataCache.put(model, entityData);
 
-        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.spawn")) plugin.getLogger().info("Creating model for " + model.getName());
+        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.spawn")) plugin.getLogger().info("Creating model for " + model.getName() + " (" + tracker.getClass().getSimpleName() + ")");
     }
 
     @Override
     public void processEntities(Entity entity) {
-//        if (plugin.getModelManager().getEntitiesCache().containsKey(entity.getEntityId())) return;
-//
-//        @NotNull Optional<EntityTrackerRegistry> modeledEntity = BetterModel.registry(entity);
-//
-//        modeledEntity.ifPresent(m -> createModel(modeledEntity.get().entity(), m.));
+        // BetterModel restores a loaded entity's tracker itself, which fires CreateEntityTrackerEvent.
     }
 
     @Override
@@ -66,9 +66,14 @@ public class BetterModelHandler implements ModelHandler {
         Bukkit.getPluginManager().registerEvents(new BetterModelListener(plugin), plugin);
     }
 
+    /**
+     * A Bedrock player sees the model when BetterModel has spawned it to them. That is what a
+     * dummy tracker's owner decides per player, and what an entity tracker works out from who
+     * tracks the entity, so it is the one answer that holds for both.
+     */
     @Override
     public boolean canSee(Player player, Object model) {
         Tracker tracker = (Tracker) model;
-        return !tracker.getPipeline().isHide(BukkitAdapter.adapt(player));
+        return tracker.isSpawned(player.getUniqueId()) && !tracker.isHide(BukkitAdapter.adapt(player));
     }
 }
