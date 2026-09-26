@@ -53,9 +53,13 @@ public class PacketEntity {
             // i dont know why some ModelEngine models have a null world
             return false;
         }
-        boolean sent = this.location.getWorld() != location.getWorld() || this.location.distanceSquared(location) > 0.000001 || this.location.getYaw() != location.getYaw() || this.location.getPitch() != location.getPitch();
+        boolean turned = this.location.getYaw() != location.getYaw();
+        boolean sent = this.location.getWorld() != location.getWorld() || this.location.distanceSquared(location) > 0.000001 || turned || this.location.getPitch() != location.getPitch();
         this.location = location.clone();
         if (sent) sendLocationPacket(viewers);
+        // The head turns with the body: Bedrock's look_at_target bends h_ bones by the gap
+        // between the two, so a head left at its spawn yaw would twist as the model turns.
+        if (turned) sendHeadYaw(viewers);
 
         return true;
     }
@@ -93,6 +97,11 @@ public class PacketEntity {
 
     public void sendHeadRotation(Collection<Player> players) {
         WrapperPlayServerEntityRotation packet = new WrapperPlayServerEntityRotation(id, headYaw, headPitch, false);
+        players.forEach(player -> PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet));
+    }
+
+    public void sendHeadYaw(Collection<Player> players) {
+        WrapperPlayServerEntityHeadLook packet = new WrapperPlayServerEntityHeadLook(id, location.getYaw());
         players.forEach(player -> PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet));
     }
 
