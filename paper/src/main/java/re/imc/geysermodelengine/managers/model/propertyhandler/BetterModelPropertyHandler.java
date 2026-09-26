@@ -104,8 +104,12 @@ public class BetterModelPropertyHandler implements PropertyHandler {
 
         int entity = model.getEntity().getEntityId();
 
+        // Bone bits exist only when the pack was built with part visibility on (its
+        // disable_part_visibility off); sent otherwise, Geyser forwards them as unknown properties.
         Map<String, Boolean> boneUpdates = new HashMap<>();
-        tracker.bones().forEach(bone -> processBone(bone, boneUpdates));
+        if (plugin.getConfigManager().getConfig().getBoolean("models.part-visibility", false)) {
+            tracker.bones().forEach(bone -> processBone(bone, boneUpdates));
+        }
 
         // Every animation the model has gets a bit, set while any bone is playing it. Both sides
         // sort the names, so the set has to be the model's full list, running or not.

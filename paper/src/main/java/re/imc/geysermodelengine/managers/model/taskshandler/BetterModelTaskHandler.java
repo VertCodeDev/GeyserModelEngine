@@ -61,7 +61,7 @@ public class BetterModelTaskHandler implements TaskHandler {
         if (entity.isDead()) return;
 
         if (entityData.isRemoved()) {
-            remove();
+            retire();
             return;
         }
 
@@ -91,7 +91,8 @@ public class BetterModelTaskHandler implements TaskHandler {
      * Take the model down for its viewers and forget it. Only this model leaves the entity's map:
      * an entity can carry more than one.
      */
-    private void remove() {
+    public synchronized void retire() {
+        if (removed) return;
         removed = true;
         entityData.getEntity().remove();
 
@@ -103,7 +104,7 @@ public class BetterModelTaskHandler implements TaskHandler {
         }
         plugin.getModelManager().getModelEntitiesCache().computeIfPresent(key, (k, model) -> model.getEntityData() == entityData ? null : model);
 
-        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.death")) plugin.getLogger().info(entityData.getTracker().name() + " is gone, removing it");
+        if (plugin.getConfigManager().getConfig().getBoolean("options.debug.death")) plugin.getLogger().info(entityData.getTracker().name() + " (" + entityData.getTracker().getClass().getSimpleName() + ", key " + key + ") is gone, removing it");
 
         cancel();
 

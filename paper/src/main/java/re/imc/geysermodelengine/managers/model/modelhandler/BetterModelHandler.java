@@ -40,10 +40,15 @@ public class BetterModelHandler implements ModelHandler {
 
         Map<Model, EntityData> entityDataCache = plugin.getModelManager().getEntitiesCache().computeIfAbsent(key, k -> new ConcurrentHashMap<>());
 
-        // One copy of a model per entity. Checked before building anything: the entity data
-        // starts its task on construction, and a rejected one would tick forever.
-        for (Model existing : entityDataCache.keySet()) {
-            if (existing.getName().equals(tracker.name())) return;
+        // One copy of a model per entity, checked before building anything: the entity data starts
+        // its task on construction. The same tracker again is ignored; a new one for the same
+        // model (BetterModel rebuilt it, say on a chunk reload) replaces the stale copy.
+        for (Map.Entry<Model, EntityData> existing : entityDataCache.entrySet()) {
+            if (!existing.getKey().getName().equals(tracker.name())) continue;
+
+            BetterModelEntityData stale = (BetterModelEntityData) existing.getValue();
+            if (stale.getTracker() == tracker) return;
+            stale.getEntityTask().retire();
         }
 
         PropertyHandler propertyHandler = plugin.getEntityTaskManager().getPropertyHandler();

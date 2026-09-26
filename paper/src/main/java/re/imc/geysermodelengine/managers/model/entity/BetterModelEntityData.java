@@ -38,6 +38,9 @@ public class BetterModelEntityData implements EntityData {
 
     private volatile boolean hurt;
 
+    private static final long DEAD_GRACE_MILLIS = 30_000;
+    private volatile long deadSince;
+
     public BetterModelEntityData(GeyserModelEngine plugin, Tracker tracker, int key) {
         this.plugin = plugin;
 
@@ -73,10 +76,21 @@ public class BetterModelEntityData implements EntityData {
     }
 
     /**
-     * @return whether the tracker is gone: closed (removed, or BetterModel reloaded), or its entity dead
+     * Whether the tracker is gone. BetterModel closes a tracker when it is removed, reloaded or its
+     * entity despawns dead, and keeps it open through an entity's death animation, which Bedrock
+     * then plays too. A tracker whose entity stays dead without being closed is let go after
+     * {@link #DEAD_GRACE_MILLIS}, so it cannot tick forever.
      */
     public boolean isRemoved() {
-        return tracker.isClosed() || tracker.forRemoval() || (entitySource != null && entitySource.dead());
+        if (tracker.isClosed()) return true;
+        if (entitySource == null || !entitySource.dead()) {
+            deadSince = 0;
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (deadSince == 0) deadSince = now;
+        return now - deadSince > DEAD_GRACE_MILLIS;
     }
 
     public void runEntityTask() {
