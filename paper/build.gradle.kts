@@ -43,8 +43,8 @@ dependencies {
     implementation("dev.jorel:commandapi-paper-shade:12.0.0")
 
     compileOnly("com.ticxo.modelengine:ModelEngine:R4.1.0")
-    compileOnly("io.github.toxicity188:bettermodel-api:2.2.0")
-    compileOnly("io.github.toxicity188:bettermodel-bukkit-api:2.2.0")
+    compileOnly("io.github.toxicity188:bettermodel-api:3.5.0")
+    compileOnly("io.github.toxicity188:bettermodel-bukkit-api:3.5.0")
     
     compileOnly(files("libs/geyserutils-spigot-1.0-SNAPSHOT.jar"))
     compileOnly("org.geysermc.floodgate:api:2.2.4-SNAPSHOT")
@@ -56,7 +56,7 @@ dependencies {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 }
 
 tasks.compileJava {
