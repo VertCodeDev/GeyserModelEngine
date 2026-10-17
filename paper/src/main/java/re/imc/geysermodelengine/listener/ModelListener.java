@@ -3,6 +3,7 @@ package re.imc.geysermodelengine.listener;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -46,5 +47,11 @@ public class ModelListener implements Listener {
         Player player = event.getPlayer();
         if (!BedrockUtils.isBedrockPlayer(player)) return;
         plugin.getModelManager().getPlayerJoinedCache().remove(player.getUniqueId());
+    }
+
+    // Last, so nothing else on the quit asks again and leaves the answer behind.
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuitLast(PlayerQuitEvent event) {
+        BedrockUtils.forget(event.getPlayer().getUniqueId());
     }
 }
