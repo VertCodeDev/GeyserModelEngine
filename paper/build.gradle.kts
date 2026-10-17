@@ -40,7 +40,6 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-    implementation("dev.jorel:commandapi-paper-shade:12.0.0")
 
     compileOnly("com.ticxo.modelengine:ModelEngine:R4.1.0")
     compileOnly("io.github.toxicity188:bettermodel-api:3.5.0")
@@ -68,7 +67,6 @@ tasks.compileJava {
 tasks.shadowJar {
     archiveFileName.set("${rootProject.name}-${version}.jar")
 
-    relocate("dev.jorel.commandapi", "re.imc.geysermodelengine.libs.commandapi")
 
     relocate("org.bstats", "re.imc.geysermodelengine.libs.bstats")
 

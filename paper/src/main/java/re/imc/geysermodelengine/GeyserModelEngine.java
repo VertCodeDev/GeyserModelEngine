@@ -2,8 +2,6 @@ package re.imc.geysermodelengine;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
-import dev.jorel.commandapi.CommandAPI;
-import dev.jorel.commandapi.CommandAPIPaperConfig;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -11,7 +9,7 @@ import re.imc.geysermodelengine.hooks.FloodgateAPIHook;
 import re.imc.geysermodelengine.listener.ModelListener;
 import re.imc.geysermodelengine.listener.MountPacketListener;
 import re.imc.geysermodelengine.managers.ConfigManager;
-import re.imc.geysermodelengine.managers.commands.CommandManager;
+import re.imc.geysermodelengine.commands.GeyserModelEngineCommand;
 import re.imc.geysermodelengine.managers.model.EntityTaskManager;
 import re.imc.geysermodelengine.managers.model.ModelManager;
 import re.imc.geysermodelengine.runnables.BedrockMountControlRunnable;
@@ -23,7 +21,6 @@ public class GeyserModelEngine extends JavaPlugin {
 
     private ConfigManager configManager;
 
-    private CommandManager commandManager;
 
     private ModelManager modelManager;
     private EntityTaskManager entityTaskManager;
@@ -32,7 +29,6 @@ public class GeyserModelEngine extends JavaPlugin {
 
     @Override
     public void onLoad() {
-        CommandAPI.onLoad(new CommandAPIPaperConfig(this));
         preLoadManagers();
     }
 
@@ -51,14 +47,15 @@ public class GeyserModelEngine extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        this.modelManager.removeEntities();
+        // Nothing to take down when enabling failed half way.
+        if (this.modelManager != null) {
+            this.modelManager.removeEntities();
+        }
 
-        CommandAPI.onDisable();
     }
 
     private void loadHooks() {
         FloodgateAPIHook.loadHook(this);
-        CommandAPI.onEnable();
     }
 
     private void loadBStats() {
@@ -70,7 +67,7 @@ public class GeyserModelEngine extends JavaPlugin {
     }
 
     private void loadManagers() {
-        this.commandManager = new CommandManager(this);
+        GeyserModelEngineCommand.register(this);
 
         this.modelManager = new ModelManager(this);
         this.entityTaskManager = new EntityTaskManager(this);
@@ -84,10 +81,6 @@ public class GeyserModelEngine extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
-    }
-
-    public CommandManager getCommandManager() {
-        return commandManager;
     }
 
     public ModelManager getModelManager() {
