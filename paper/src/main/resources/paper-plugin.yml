@@ -10,14 +10,18 @@ authors:
   - willem.dev
   - xSquishyLiam
 
-load: STARTUP
 
 dependencies:
   server:
     GeyserUtils:
       required: true
+      load: BEFORE
+      join-classpath: true
+    # The server's packetevents plugin, loaded and started before this one.
     packetevents:
       required: true
+      load: BEFORE
+      join-classpath: true
     floodgate:
       required: false
     ModelEngine:
