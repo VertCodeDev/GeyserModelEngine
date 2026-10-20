@@ -14,6 +14,7 @@ import re.imc.geysermodelengine.managers.model.EntityTaskManager;
 import re.imc.geysermodelengine.managers.model.ModelManager;
 import re.imc.geysermodelengine.runnables.BedrockMountControlRunnable;
 import re.imc.geysermodelengine.runnables.UpdateTaskRunnable;
+import re.imc.geysermodelengine.util.BedrockUtils;
 
 import java.util.concurrent.*;
 
@@ -43,6 +44,9 @@ public class GeyserModelEngine extends JavaPlugin {
         PacketEvents.getAPI().getEventManager().registerListener(new MountPacketListener(this), PacketListenerPriority.NORMAL);
 
         Bukkit.getPluginManager().registerEvents(new ModelListener(this), this);
+
+        // Players already online (a late load) have no join to put them in the Bedrock set.
+        Bukkit.getOnlinePlayers().forEach(BedrockUtils::isBedrockPlayer);
     }
 
     @Override

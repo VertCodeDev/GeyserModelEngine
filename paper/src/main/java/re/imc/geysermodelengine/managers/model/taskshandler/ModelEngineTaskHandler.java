@@ -37,11 +37,17 @@ public class ModelEngineTaskHandler implements TaskHandler {
     private final ConcurrentHashMap<String, Integer> lastIntSet = new ConcurrentHashMap<>();
     private final Cache<String, Boolean> lastPlayedAnim = CacheBuilder.newBuilder().expireAfterWrite(30, TimeUnit.MILLISECONDS).build();
 
+    // Who can see the model is asked less often than it moves: every Bedrock player is measured
+    // against it, and a model that shows up a few ticks late is not noticed.
+    private final long viewerCheckPeriod;
+    private long nextViewerCheck = 0;
+
     private final ScheduledFuture scheduledFuture;
 
     public ModelEngineTaskHandler(GeyserModelEngine plugin, ModelEngineEntityData entityData) {
         this.plugin = plugin;
         this.entityData = entityData;
+        this.viewerCheckPeriod = plugin.getConfigManager().getConfig().getLong("models.viewer-check-period", 100);
 
         plugin.getEntityTaskManager().sendHitBoxToAll(entityData);
         scheduledFuture = plugin.getSchedulerPool().scheduleAtFixedRate(() -> {
@@ -60,7 +66,11 @@ public class ModelEngineTaskHandler implements TaskHandler {
         PacketEntity entity = entityData.getEntity();
         if (entity == null || entity.isDead()) return;
 
-        plugin.getEntityTaskManager().checkViewers(entityData, entityData.getViewers());
+        long now = System.currentTimeMillis();
+        if (now >= nextViewerCheck) {
+            nextViewerCheck = now + viewerCheckPeriod;
+            plugin.getEntityTaskManager().checkViewers(entityData, entityData.getViewers());
+        }
 
         entityData.teleportToModel();
 

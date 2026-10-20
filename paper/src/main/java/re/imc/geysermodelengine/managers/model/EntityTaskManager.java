@@ -41,9 +41,7 @@ public class EntityTaskManager {
     }
 
     public void checkViewers(EntityData model, Set<Player> viewers) {
-        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            if (!BedrockUtils.isBedrockPlayer(onlinePlayer)) continue;
-
+        for (Player onlinePlayer : BedrockUtils.getBedrockPlayers()) {
             if (canSee(onlinePlayer, model.getEntity(), model.getModelInstance())) {
                 if (!viewers.contains(onlinePlayer)) {
                     viewers.add(onlinePlayer);
@@ -77,14 +75,15 @@ public class EntityTaskManager {
         if (!player.isOnline()) return false;
         if (!plugin.getModelManager().getPlayerJoinedCache().contains(player.getUniqueId())) return false;
 
-        Location playerLocation = player.getLocation().clone();
-        Location entityLocation = entity.getLocation().clone();
-        playerLocation.setY(0);
-        entityLocation.setY(0);
-
-        if (playerLocation.getWorld() != entityLocation.getWorld()) return false;
+        // Runs for every Bedrock player against every model, so the coordinates are read straight
+        // off the player instead of from a copied Location. Only the horizontal distance counts.
+        Location entityLocation = entity.getLocation();
+        if (player.getWorld() != entityLocation.getWorld()) return false;
         if (!plugin.getModelManager().getModelHandler().canSee(player, model)) return false;
-        if (playerLocation.distanceSquared(entityLocation) > player.getSendViewDistance() * player.getSendViewDistance() * 48) return false;
+
+        double distanceX = player.getX() - entityLocation.getX();
+        double distanceZ = player.getZ() - entityLocation.getZ();
+        if (distanceX * distanceX + distanceZ * distanceZ > player.getSendViewDistance() * player.getSendViewDistance() * 48) return false;
 
         return true;
     }
